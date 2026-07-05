@@ -24,28 +24,84 @@ export interface HydratedState {
   conformiteByProperty: Record<number, ConformiteCategory[]>;
 }
 
-// Default checklist created for every newly-added property (mirrors the "not
-// yet licensed" onboarding path — see components/onboarding for the copy).
-function defaultConformiteTemplate() {
+// Documents collected during onboarding for users who already have a licence
+// (see components/onboarding StepAuthorization). When present, the new
+// property's checklist is seeded as already-done with these dates instead of
+// the default "missing" template.
+export interface LicenseIntake {
+  hutgNumber?: string;
+  hutgObtained?: string;
+  hutgExpiry?: string;
+  cedulaObtained?: string;
+  energetiqueObtained?: string;
+  assuranceObtained?: string;
+}
+
+interface TemplateItem {
+  label: string;
+  description: string;
+  status: "done" | "missing";
+  hasExpiry?: boolean;
+  obtainedDate?: string;
+  expiryDate?: string;
+}
+
+interface TemplateCategory {
+  title: string;
+  items: TemplateItem[];
+}
+
+// Checklist created for every newly-added property. Without `license`, every
+// item starts "missing" (not-yet-licensed path). With `license`, items are
+// seeded "done" using the dates collected during onboarding.
+function conformiteTemplate(license?: LicenseIntake): TemplateCategory[] {
+  const done: "done" | "missing" = license ? "done" : "missing";
   return [
     {
       title: "Démarches légales & licence",
       items: [
-        { label: "Licence HUTG", description: "Numéro de registre du tourisme (Habitatge d'Ús Turístic)", hasExpiry: true },
-        { label: "Inscription SES / Registre Únic", description: "Enregistrement des voyageurs auprès des autorités" },
+        {
+          label: "Licence HUTG",
+          description: "Numéro de registre du tourisme (Habitatge d'Ús Turístic)",
+          hasExpiry: true,
+          status: done,
+          obtainedDate: license?.hutgObtained,
+          expiryDate: license?.hutgExpiry,
+        },
+        {
+          label: "Inscription SES / Registre Únic",
+          description: "Enregistrement des voyageurs auprès des autorités",
+          status: done,
+        },
       ],
     },
     {
       title: "Préparation technique du logement",
       items: [
-        { label: "Cédula d'habitabilité", description: "Certificat d'habitabilité du logement" },
-        { label: "Certificat de performance énergétique", description: "Diagnostic énergétique obligatoire" },
+        {
+          label: "Cédula d'habitabilité",
+          description: "Certificat d'habitabilité du logement",
+          status: done,
+          obtainedDate: license?.cedulaObtained,
+        },
+        {
+          label: "Certificat de performance énergétique",
+          description: "Diagnostic énergétique obligatoire",
+          status: done,
+          obtainedDate: license?.energetiqueObtained,
+        },
       ],
     },
     {
       title: "Assurance & sécurité",
       items: [
-        { label: "Assurance habitation location saisonnière", description: "Couverture adaptée aux voyageurs court séjour", hasExpiry: true },
+        {
+          label: "Assurance habitation location saisonnière",
+          description: "Couverture adaptée aux voyageurs court séjour",
+          hasExpiry: true,
+          status: done,
+          obtainedDate: license?.assuranceObtained,
+        },
       ],
     },
   ];
@@ -140,6 +196,7 @@ export async function fetchAll(userId: string): Promise<HydratedState> {
           status: it.status,
           hasExpiry: it.has_expiry,
           expiryDate: it.expiry_date ?? undefined,
+          obtainedDate: it.obtained_date ?? undefined,
         })),
     };
     conformiteByProperty[propIndex] = [...(conformiteByProperty[propIndex] ?? []), category];
@@ -191,8 +248,11 @@ export async function persistProfile(
 
 export async function insertProperty(
   userId: string,
-  input: { name: string; location: string; region: string; type: string }
+  input: { name: string; location: string; region: string; type: string },
+  license?: LicenseIntake
 ): Promise<{ dbId: string; categories: ConformiteCategory[] }> {
+  const licensed = !!license;
+
   const { data: propRow, error: propError } = await supabase
     .from("properties")
     .insert({
@@ -201,20 +261,24 @@ export async function insertProperty(
       location: input.location,
       region: input.region,
       type: input.type,
-      pct: 0,
-      status: "pending",
+      pct: licensed ? 100 : 0,
+      status: licensed ? "active" : "pending",
+      docs_ok: licensed,
+      license_number: license?.hutgNumber || null,
+      license_obtained_date: license?.hutgObtained || null,
+      license_expiry_date: license?.hutgExpiry || null,
     })
     .select()
     .single();
   if (propError || !propRow) throw propError ?? new Error("Property insert failed");
 
-  await supabase.from("property_tags").insert({
-    property_id: propRow.id,
-    label: "Conformité à démarrer",
-    variant: "warn",
-  });
+  await supabase.from("property_tags").insert(
+    licensed
+      ? { property_id: propRow.id, label: "HUTG actif", variant: "ok" }
+      : { property_id: propRow.id, label: "Conformité à démarrer", variant: "warn" }
+  );
 
-  const template = defaultConformiteTemplate();
+  const template = conformiteTemplate(license);
   const categories: ConformiteCategory[] = [];
 
   for (let i = 0; i < template.length; i++) {
@@ -230,8 +294,10 @@ export async function insertProperty(
       category_id: catRow.id,
       label: item.label,
       description: item.description,
-      status: "missing" as const,
+      status: item.status,
       has_expiry: !!item.hasExpiry,
+      expiry_date: item.expiryDate || null,
+      obtained_date: item.obtainedDate || null,
       sort_order: idx,
     }));
     const { data: itemRows, error: itemError } = await supabase
@@ -250,6 +316,7 @@ export async function insertProperty(
         status: it.status as "done" | "progress" | "missing",
         hasExpiry: it.has_expiry,
         expiryDate: it.expiry_date ?? undefined,
+        obtainedDate: it.obtained_date ?? undefined,
       })),
     });
   }

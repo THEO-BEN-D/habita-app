@@ -22,6 +22,7 @@ export default function AddPropertyModal() {
   const setAddPropStatus = useAppStore((s) => s.setAddPropStatus);
   const addProperty = useAppStore((s) => s.addProperty);
   const goToPropHub = useAppStore((s) => s.goToPropHub);
+  const obLicenseInfo = useAppStore((s) => s.obLicenseInfo);
   const router = useRouter();
 
   if (!modal.show) return null;
@@ -30,15 +31,22 @@ export default function AddPropertyModal() {
   const step2Valid = !!modal.status;
   const [saving, setSaving] = useState(false);
 
+  // If the documents were already collected during onboarding, carry them over
+  // so the property is created pre-marked compliant instead of starting empty.
+  const hasCollectedLicense = Object.values(obLicenseInfo).some(Boolean);
+
   async function confirm() {
     setSaving(true);
     try {
-      const id = await addProperty({
-        name: modal.name,
-        location: modal.address,
-        region: "",
-        type: TYPES.find((t) => t.value === modal.type)?.label ?? "",
-      });
+      const id = await addProperty(
+        {
+          name: modal.name,
+          location: modal.address,
+          region: "",
+          type: TYPES.find((t) => t.value === modal.type)?.label ?? "",
+        },
+        modal.status === "licensed" && hasCollectedLicense ? obLicenseInfo : undefined
+      );
       closeAddPropModal();
       goToPropHub(id, "list");
       router.push(`/biens/${id}/conformite`);

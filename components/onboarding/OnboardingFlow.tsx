@@ -256,40 +256,94 @@ function StepPropStatus() {
   );
 }
 
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value?: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-[12px] uppercase tracking-wide text-ink-30 font-semibold block mb-1.5">{label}</label>
+      <input
+        type="date"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full border border-border rounded-lg px-3 py-2.5 text-[14px] input-focus"
+      />
+    </div>
+  );
+}
+
 function StepAuthorization() {
   const obPropStatus = useAppStore((s) => s.obPropStatus);
+  const obLicenseInfo = useAppStore((s) => s.obLicenseInfo);
+  const setObLicenseInfo = useAppStore((s) => s.setObLicenseInfo);
 
   if (obPropStatus === "licensed") {
     return (
       <div className="flex flex-col gap-6">
-        <h2 className="font-display font-bold text-[28px]">Votre autorisation</h2>
-        <div>
-          <label className="text-[12px] uppercase tracking-wide text-ink-30 font-semibold block mb-1.5">
-            Numéro HUTG
-          </label>
-          <input
-            className="w-full border border-border rounded-lg px-3 py-2.5 text-[14px] font-mono input-focus"
-            placeholder="HUTG-XXXXXX"
+        <h2 className="font-display font-bold text-[28px]">Vos documents</h2>
+        <p className="text-[13px] text-ink-50 -mt-4">
+          Renseignez ce que vous avez déjà — Habita préremplira la checklist de conformité de votre bien avec ces
+          informations, vous n&apos;aurez rien à ressaisir.
+        </p>
+
+        <div className="flex flex-col gap-4 border border-border rounded-xl p-4">
+          <div className="text-[13px] font-semibold">Licence HUTG</div>
+          <div>
+            <label className="text-[12px] uppercase tracking-wide text-ink-30 font-semibold block mb-1.5">
+              Numéro HUTG
+            </label>
+            <input
+              value={obLicenseInfo.hutgNumber ?? ""}
+              onChange={(e) => setObLicenseInfo({ hutgNumber: e.target.value })}
+              className="w-full border border-border rounded-lg px-3 py-2.5 text-[14px] font-mono input-focus"
+              placeholder="HUTG-XXXXXX"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <DateField
+              label="Date d'obtention"
+              value={obLicenseInfo.hutgObtained}
+              onChange={(v) => setObLicenseInfo({ hutgObtained: v })}
+            />
+            <DateField
+              label="Date d'expiration"
+              value={obLicenseInfo.hutgExpiry}
+              onChange={(v) => setObLicenseInfo({ hutgExpiry: v })}
+            />
+          </div>
+          <div className="border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center gap-2 text-center">
+            <IconUpload width={18} height={18} className="text-ink-30" />
+            <div className="text-[12px] text-ink-50">Glissez votre document de licence ici (optionnel)</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <DateField
+            label="Cédula d'habitabilité — obtenue le"
+            value={obLicenseInfo.cedulaObtained}
+            onChange={(v) => setObLicenseInfo({ cedulaObtained: v })}
+          />
+          <DateField
+            label="Certificat énergétique — obtenu le"
+            value={obLicenseInfo.energetiqueObtained}
+            onChange={(v) => setObLicenseInfo({ energetiqueObtained: v })}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-[12px] uppercase tracking-wide text-ink-30 font-semibold block mb-1.5">
-              Date d&apos;obtention
-            </label>
-            <input type="date" className="w-full border border-border rounded-lg px-3 py-2.5 text-[14px] input-focus" />
-          </div>
-          <div>
-            <label className="text-[12px] uppercase tracking-wide text-ink-30 font-semibold block mb-1.5">
-              Date d&apos;expiration
-            </label>
-            <input type="date" className="w-full border border-border rounded-lg px-3 py-2.5 text-[14px] input-focus" />
-          </div>
-        </div>
-        <div className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center gap-2 text-center">
-          <IconUpload width={20} height={20} className="text-ink-30" />
-          <div className="text-[13px] text-ink-50">Glissez votre document de licence ici (optionnel)</div>
-        </div>
+        <DateField
+          label="Assurance habitation — souscrite le"
+          value={obLicenseInfo.assuranceObtained}
+          onChange={(v) => setObLicenseInfo({ assuranceObtained: v })}
+        />
+        <p className="text-[12px] text-ink-30 -mt-2">
+          Tous ces champs sont optionnels — laissez vide ce que vous ne connaissez pas encore, vous pourrez le
+          compléter plus tard depuis Conformité &amp; docs.
+        </p>
       </div>
     );
   }
@@ -373,12 +427,19 @@ function StepSummary() {
         </div>
       </div>
 
-      {s.obPropStatus === "licensed" && (
-        <div className="bg-brand-lt border border-brand-mid rounded-xl p-4 text-[13px] text-ink-80 text-left">
-          Vous allez être redirigé vers <strong>Mes biens</strong> pour ajouter votre propriété, puis vers{" "}
-          <strong>Conformité &amp; docs</strong> pour importer votre licence.
-        </div>
-      )}
+      <div className="bg-brand-lt border border-brand-mid rounded-xl p-4 text-[13px] text-ink-80 text-left">
+        {s.obPropStatus === "licensed" ? (
+          <>
+            Vous allez ajouter votre bien — les documents renseignés à l&apos;instant seront déjà cochés dans sa
+            checklist de <strong>Conformité &amp; docs</strong>.
+          </>
+        ) : (
+          <>
+            Vous allez ajouter votre bien — Habita vous guidera ensuite pas à pas dans{" "}
+            <strong>Conformité &amp; docs</strong> pour obtenir votre licence HUTG.
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -393,14 +454,13 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
 }
 
 function FinalCta() {
-  const obPropStatus = useAppStore((s) => s.obPropStatus);
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
   const router = useRouter();
 
   async function handleClick() {
-    const target = await completeOnboarding();
+    await completeOnboarding();
     // Client-side nav — keeps the in-memory store (obComplete) intact.
-    router.push(target === "biens" ? "/biens" : "/");
+    router.push("/biens");
   }
 
   return (
@@ -408,7 +468,7 @@ function FinalCta() {
       onClick={handleClick}
       className="px-5 py-2.5 rounded-[9px] text-[13px] font-semibold bg-brand text-white hover:bg-brand-dk transition-colors"
     >
-      {obPropStatus === "licensed" ? "Ajouter mon bien →" : "Accéder à la plateforme →"}
+      Ajouter mon bien →
     </button>
   );
 }

@@ -66,6 +66,7 @@ export interface ConformiteItem {
   status: "done" | "progress" | "missing";
   hasExpiry?: boolean;
   expiryDate?: string;
+  obtainedDate?: string;
 }
 
 export interface ConformiteCategory {

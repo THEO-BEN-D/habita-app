@@ -62,6 +62,11 @@ export default function ConformiteView({ property }: { property: Property }) {
                             Ajouter un document
                           </button>
                         )}
+                        {item.obtainedDate && (
+                          <span className="font-mono text-[11px] text-ink-50">
+                            Obtenu le {item.obtainedDate}
+                          </span>
+                        )}
                         {item.hasExpiry && (
                           <span className="font-mono text-[11px] text-ink-50">
                             Expire le {item.expiryDate ?? "—"}

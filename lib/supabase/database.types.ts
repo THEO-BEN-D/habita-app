@@ -47,6 +47,7 @@ export type Database = {
           has_expiry: boolean;
           id: string;
           label: string;
+          obtained_date: string | null;
           sort_order: number;
           status: string;
         };
@@ -58,6 +59,7 @@ export type Database = {
           has_expiry?: boolean;
           id?: string;
           label: string;
+          obtained_date?: string | null;
           sort_order?: number;
           status?: string;
         };
@@ -69,6 +71,7 @@ export type Database = {
           has_expiry?: boolean;
           id?: string;
           label?: string;
+          obtained_date?: string | null;
           sort_order?: number;
           status?: string;
         };

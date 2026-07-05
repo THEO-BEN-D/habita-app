@@ -14,7 +14,7 @@ import {
   PropStatus,
   Screen,
 } from "./types";
-import { fetchAll, insertProperty, persistProfile, setTaskCompleted } from "./backend";
+import { fetchAll, insertProperty, LicenseIntake, persistProfile, setTaskCompleted } from "./backend";
 
 interface AddPropModalState {
   show: boolean;
@@ -52,6 +52,7 @@ interface AppState {
   obPropStatus: PropStatus;
   obReminderDelay: number;
   obLang: "fr" | "es";
+  obLicenseInfo: LicenseIntake;
 
   // Task management
   completedGestion: Record<string, boolean>;
@@ -84,11 +85,15 @@ interface AppState {
   setObPropStatus: (s: PropStatus) => void;
   setObReminderDelay: (n: number) => void;
   setObLang: (l: "fr" | "es") => void;
-  completeOnboarding: () => Promise<"biens" | "dashboard">;
+  setObLicenseInfo: (patch: Partial<LicenseIntake>) => void;
+  completeOnboarding: () => Promise<"biens">;
   skipOnboarding: () => Promise<void>;
 
   // Actions — properties
-  addProperty: (p: { name: string; location: string; region: string; type: string }) => Promise<number>;
+  addProperty: (
+    p: { name: string; location: string; region: string; type: string },
+    license?: LicenseIntake
+  ) => Promise<number>;
 
   // Actions — gestion
   toggleGestionDone: (taskId: string) => void;
@@ -132,6 +137,7 @@ const emptyState = {
   obPropStatus: null,
   obReminderDelay: 3,
   obLang: "fr" as const,
+  obLicenseInfo: {} as LicenseIntake,
 
   completedGestion: {} as Record<string, boolean>,
   expandedGestion: null,
@@ -194,12 +200,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   setObPropStatus: (obPropStatus) => set({ obPropStatus }),
   setObReminderDelay: (obReminderDelay) => set({ obReminderDelay }),
   setObLang: (obLang) => set({ obLang }),
+  setObLicenseInfo: (patch) => set((s) => ({ obLicenseInfo: { ...s.obLicenseInfo, ...patch } })),
 
   completeOnboarding: async () => {
     const { obPropStatus, obNationality, obFiscalRes, obReminderDelay, obLang, userId } = get();
-    set({ obComplete: true });
-    const target = obPropStatus === "licensed" ? "biens" : "dashboard";
-    set({ screen: target });
+    // Either path (new or already-licensed) ends the same way: straight into
+    // adding the first property, pre-filled with what we already know.
+    set({
+      obComplete: true,
+      screen: "biens",
+      addPropModal: { ...defaultAddPropModal, show: true, status: obPropStatus },
+    });
     if (userId) {
       persistProfile(userId, {
         onboardingComplete: true,
@@ -210,7 +221,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         lang: obLang,
       }).catch((err) => console.error("Failed to save onboarding profile", err));
     }
-    return target;
+    return "biens";
   },
 
   skipOnboarding: async () => {
@@ -228,11 +239,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  addProperty: async (p) => {
+  addProperty: async (p, license) => {
     const { properties, userId } = get();
     if (!userId) throw new Error("Cannot add a property while signed out");
     const id = properties.length;
-    const { dbId, categories } = await insertProperty(userId, p);
+    const licensed = !!license;
+    const { dbId, categories } = await insertProperty(userId, p, license);
     const newProp: Property = {
       id,
       dbId,
@@ -240,16 +252,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       location: p.location,
       region: p.region,
       type: p.type,
-      pct: 0,
-      status: "pending",
+      pct: licensed ? 100 : 0,
+      status: licensed ? "active" : "pending",
       income: "—",
       airbnbOk: false,
-      docsOk: false,
-      tags: [{ label: "Conformité à démarrer", warn: true }],
+      docsOk: licensed,
+      licenseNumber: license?.hutgNumber,
+      licenseObtainedDate: license?.hutgObtained,
+      licenseExpiryDate: license?.hutgExpiry,
+      tags: licensed
+        ? [{ label: "HUTG actif", ok: true }]
+        : [{ label: "Conformité à démarrer", warn: true }],
     };
     set({
       properties: [...properties, newProp],
       conformiteByProperty: { ...get().conformiteByProperty, [id]: categories },
+      obLicenseInfo: {},
     });
     return id;
   },
@@ -271,13 +289,3 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAddPropType: (type) => set((s) => ({ addPropModal: { ...s.addPropModal, type } })),
   setAddPropStatus: (status) => set((s) => ({ addPropModal: { ...s.addPropModal, status } })),
 }));
-
-// screenToNav map — used by Sidebar to decide which nav item to highlight.
-// Per spec: voyageurs/fiscalite/licence(conformite)/calendrier/gestion -> "Gestion opérationnelle";
-// dashboard/propHub(property)/biens -> "Mes biens".
-export function screenToNav(screen: Screen): string {
-  if (["voyageurs", "fiscalite", "calendrier", "gestion", "conformite"].includes(screen)) return "gestion";
-  if (["dashboard", "property", "biens"].includes(screen)) return "biens";
-  if (screen === "aide") return "aide";
-  return screen;
-}

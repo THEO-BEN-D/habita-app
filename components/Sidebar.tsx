@@ -16,28 +16,32 @@ import {
 } from "./icons";
 
 const NAV = [
-  { id: "dashboard", label: "Dashboard", href: "/", Icon: IconHouse, group: "biens" },
-  { id: "biens", label: "Mes biens", href: "/biens", Icon: IconBuilding, group: "biens" },
-  { id: "gestion", label: "Gestion opérationnelle", href: "/gestion", Icon: IconClipboard, group: "gestion" },
-  { id: "conformite", label: "Conformité & docs", href: "/conformite", Icon: IconShield, group: "gestion" },
-  { id: "calendrier", label: "Calendrier", href: "/calendrier", Icon: IconCalendar, group: "gestion" },
-  { id: "voyageurs", label: "Voyageurs", href: "/voyageurs", Icon: IconUsers, group: "gestion" },
-  { id: "fiscalite", label: "Fiscalité", href: "/fiscalite", Icon: IconReceipt, group: "gestion" },
-  { id: "aide", label: "Aide & experts", href: "/aide", Icon: IconHelp, group: "aide" },
+  { id: "dashboard", label: "Dashboard", href: "/", Icon: IconHouse },
+  { id: "biens", label: "Mes biens", href: "/biens", Icon: IconBuilding },
+  { id: "gestion", label: "Gestion opérationnelle", href: "/gestion", Icon: IconClipboard },
+  { id: "conformite", label: "Conformité & docs", href: "/conformite", Icon: IconShield },
+  { id: "calendrier", label: "Calendrier", href: "/calendrier", Icon: IconCalendar },
+  { id: "voyageurs", label: "Voyageurs", href: "/voyageurs", Icon: IconUsers },
+  { id: "fiscalite", label: "Fiscalité", href: "/fiscalite", Icon: IconReceipt },
+  { id: "aide", label: "Aide & experts", href: "/aide", Icon: IconHelp },
 ];
 
-function activeGroup(pathname: string): string {
-  if (pathname === "/" || pathname.startsWith("/biens")) return "biens";
-  if (
-    pathname.startsWith("/gestion") ||
-    pathname.startsWith("/conformite") ||
-    pathname.startsWith("/calendrier") ||
-    pathname.startsWith("/voyageurs") ||
-    pathname.startsWith("/fiscalite")
-  )
-    return "gestion";
+// Only ONE nav item should ever be highlighted — the one that owns the
+// current route. Sub-routes reached through a property (e.g. /biens/3/conformite)
+// belong to that specific section, not to "Mes biens", so check the most
+// specific patterns first.
+function activeNavId(pathname: string): string {
+  if (/^\/biens\/[^/]+\/conformite/.test(pathname)) return "conformite";
+  if (/^\/biens\/[^/]+\/calendrier/.test(pathname)) return "calendrier";
+  if (pathname === "/") return "dashboard";
+  if (pathname.startsWith("/biens")) return "biens";
+  if (pathname.startsWith("/conformite")) return "conformite";
+  if (pathname.startsWith("/calendrier")) return "calendrier";
+  if (pathname.startsWith("/gestion")) return "gestion";
+  if (pathname.startsWith("/voyageurs")) return "voyageurs";
+  if (pathname.startsWith("/fiscalite")) return "fiscalite";
   if (pathname.startsWith("/aide")) return "aide";
-  return "biens";
+  return "dashboard";
 }
 
 export default function Sidebar() {
@@ -45,7 +49,7 @@ export default function Sidebar() {
   const router = useRouter();
   const properties = useAppStore((s) => s.properties);
   const goToPropHub = useAppStore((s) => s.goToPropHub);
-  const group = activeGroup(pathname || "/");
+  const activeId = activeNavId(pathname || "/");
 
   function jumpToProperty(id: number) {
     goToPropHub(id, "list");
@@ -62,8 +66,8 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 flex flex-col gap-0.5 overflow-y-auto">
-        {NAV.map(({ id, label, href, Icon, group: itemGroup }) => {
-          const active = itemGroup === group;
+        {NAV.map(({ id, label, href, Icon }) => {
+          const active = id === activeId;
           return (
             <Link
               key={id}
